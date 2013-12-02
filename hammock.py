@@ -1,5 +1,6 @@
 import requests
 import copy
+import re
 
 
 class Hammock(object):
@@ -19,6 +20,7 @@ class Hammock(object):
         self._name = name
         self._parent = parent
         self._append_slash = append_slash
+        self._regex = '(.*?)/%s(/?/?)$' if append_slash else '(.*?)/%s(/?)$'
         self._session = requests.session()
         for k, v in kwargs.items():
             orig = getattr(self._session, k)  # Let it throw exception
@@ -26,6 +28,15 @@ class Hammock(object):
                 orig.update(v)
             else:
                 setattr(self._session, k, v)
+
+    def _perish(self, name):
+        matched = re.match(self._regex % name[1:], self._url())
+        if matched:
+            child = copy.copy(self)
+            child._name = matched.groups()[0]
+            child._parent = None
+            return child
+        return self._spawn(name)
 
     def _spawn(self, name):
         """Returns a shallow copy of current `Hammock` instance as nested child
@@ -45,6 +56,8 @@ class Hammock(object):
         # Ignore specials (Otherwise shallow copying causes infinite loops)
         if name.startswith('__'):
             raise AttributeError(name)
+        if name.startswith('_'):
+            return self._perish(name)
         return self._spawn(name)
 
     def __iter__(self):
@@ -63,7 +76,10 @@ class Hammock(object):
         """
         chain = self
         for arg in args:
-            chain = chain._spawn(str(arg))
+            if str(arg).startswith('_'):
+                chain = chain._perish(str(arg))
+            else:
+                chain = chain._spawn(str(arg))
         return chain
 
     def _close_session(self):
