@@ -30,6 +30,13 @@ class Hammock(object):
                 setattr(self._session, k, v)
 
     def _perish(self, name):
+        """
+        This method unties given node from its parent in case of node
+        starts with '_'
+
+        Arguments:
+            name -- name of child
+        """
         matched = re.match(self._regex % name[1:], self._url())
         if matched:
             child = copy.copy(self)
